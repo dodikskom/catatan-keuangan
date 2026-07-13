@@ -25,8 +25,11 @@ const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
 const ADMIN_USER = 'admin';
 const ADMIN_PASS = 'admin';
 
+// Kode ruang TETAP (tersembunyi): semua device yang login berbagi ruang yang sama.
+// Acak & sulit ditebak karena berfungsi sebagai kunci data di cloud.
+const ROOM = 'dodik-kas-9f3k7q2x';
+
 const STORAGE_KEY = 'catatan-keuangan-v1';
-const ROOM_KEY = 'catatan-keuangan-room'; // kode ruang aktif tersimpan agar tidak perlu login ulang
 
 const CATEGORIES = {
   expense: [
@@ -136,20 +139,10 @@ function lockApp() {
   lockError('');
 }
 
-// Normalisasi kode ruang jadi id dokumen Firestore yang valid & konsisten
-function normalizeRoom(raw) {
-  return (raw || '')
-    .trim().toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-') // hanya huruf/angka/-/_ ; sisanya jadi '-'
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-}
-
-// Masuk ke sebuah ruang: simpan, sambungkan sync, buka aplikasi
-async function enterRoom(room) {
-  currentRoom = room;
-  localStorage.setItem(ROOM_KEY, room);
-  $('roomLabel').textContent = room;
+// Masuk ke ruang bersama: sambungkan sync, buka aplikasi
+async function enterRoom() {
+  currentRoom = ROOM;
+  localStorage.setItem('catatan-logged-in', '1'); // penanda agar tak perlu login ulang
   $('userInfo').hidden = false;
   setSyncStatus('Menyinkronkan...');
   unlock();
@@ -159,26 +152,21 @@ async function enterRoom(room) {
     try { await signInAnonymously(auth); authReady = true; }
     catch { setSyncStatus('Gagal sinkron'); return; }
   }
-  await maybeMigrateLocalData(room);
-  startRemoteSync(room);
+  await maybeMigrateLocalData(ROOM);
+  startRemoteSync(ROOM);
 }
 
 $('lockForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const user = $('lockUser').value.trim();
   const pass = $('lockPass').value;
-  const room = normalizeRoom($('lockRoom').value);
 
   if (user !== ADMIN_USER || pass !== ADMIN_PASS) {
     lockError('Username atau password salah');
     return;
   }
-  if (!room) {
-    lockError('Isi Kode Ruang (mis. keluarga2026)');
-    return;
-  }
   lockError('');
-  enterRoom(room);
+  enterRoom();
 });
 
 /* ============================================================
@@ -554,11 +542,11 @@ function stopRemoteSync() {
 }
 
 function signOut() {
-  if (!confirm('Keluar & ganti ruang?\n\nData tetap aman di cloud. Anda perlu login lagi untuk masuk kembali.')) return;
+  if (!confirm('Keluar dari aplikasi?\n\nData tetap aman di cloud. Anda perlu login lagi untuk masuk kembali.')) return;
   stopRemoteSync();
   migrationChecked = false;
   currentRoom = null;
-  localStorage.removeItem(ROOM_KEY);
+  localStorage.removeItem('catatan-logged-in');
   transactions = [];
   save();
   $('userInfo').hidden = true;
@@ -580,12 +568,10 @@ $('signOutBtn').addEventListener('click', signOut);
    7. INIT
    ============================================================ */
 
-// Jika sudah pernah masuk ruang di perangkat ini, buka langsung tanpa login ulang.
+// Jika sudah pernah login di perangkat ini, buka langsung tanpa login ulang.
 (function autoEnter() {
-  const savedRoom = localStorage.getItem(ROOM_KEY);
-  if (savedRoom) {
-    $('lockUser').value = ADMIN_USER;
-    enterRoom(savedRoom);
+  if (localStorage.getItem('catatan-logged-in') === '1') {
+    enterRoom();
   }
 })();
 

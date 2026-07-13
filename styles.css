@@ -141,11 +141,6 @@ body {
 }
 .summary-label { font-size: 12px; opacity: .85; }
 .summary-value { font-size: 15px; font-weight: 700; margin-top: 2px; }
-.room-badge {
-  font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, .18);
-  padding: 3px 10px; border-radius: 20px; max-width: 160px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 
 /* Content */
 .content { padding: 18px 16px 0; }

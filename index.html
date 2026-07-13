@@ -18,16 +18,13 @@
     <form id="lockForm" class="lock-inner" autocomplete="off">
       <div class="lock-logo">Rp</div>
       <h1 class="lock-title">Catatan Keuangan</h1>
-      <p class="lock-sub">Masuk, lalu isi Kode Ruang. Semua perangkat dengan kode yang sama berbagi data yang sama.</p>
+      <p class="lock-sub">Masuk untuk mulai. Semua perangkat yang login berbagi data yang sama secara otomatis.</p>
 
       <div class="lock-field">
         <input id="lockUser" class="lock-input" type="text" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" />
       </div>
       <div class="lock-field">
         <input id="lockPass" class="lock-input" type="password" placeholder="Password" autocomplete="current-password" />
-      </div>
-      <div class="lock-field">
-        <input id="lockRoom" class="lock-input" type="text" placeholder="Kode Ruang (mis. keluarga2026)" autocapitalize="none" spellcheck="false" />
       </div>
 
       <button id="lockSubmitBtn" type="submit" class="sync-btn lock-submit-btn">
@@ -61,7 +58,6 @@
       </div>
       <div class="sync-bar">
         <div id="userInfo" class="user-info" hidden>
-          <span class="room-badge">🔑 <span id="roomLabel"></span></span>
           <span id="syncStatus" class="sync-status">Tersinkron</span>
           <button id="signOutBtn" class="icon-btn icon-btn-sm" aria-label="Keluar" title="Keluar">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>

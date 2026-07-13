@@ -1,5 +1,5 @@
 /* Service Worker — cache aset agar aplikasi bisa dibuka offline */
-const CACHE = 'catatan-keuangan-v4';
+const CACHE = 'catatan-keuangan-v5';
 const ASSETS = [
   './',
   './index.html',

@@ -1,6 +1,6 @@
 /* ============================================================
    Catatan Keuangan — PWA pencatatan pemasukan & pengeluaran
-   - Login PIN lokal (offline) + sinkronisasi cloud via Google/Firestore
+   - Login dengan Google (sekali masuk, otomatis tersinkron ke Firestore)
    - Dashboard grafik (donut kategori + tren 6 bulan)
    - Data di localStorage (offline-first), disinkronkan ke Firestore saat login.
    ============================================================ */
@@ -20,8 +20,6 @@ const auth = getAuth(fbApp);
 const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
 
 const STORAGE_KEY = 'catatan-keuangan-v1';
-const PIN_KEY = 'ck-pin';        // hash SHA-256 dari PIN
-const PIN_LEN = 6;
 
 const CATEGORIES = {
   expense: [
@@ -109,83 +107,13 @@ function load() {
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions)); }
 
 /* ============================================================
-   1. LOGIN PIN
+   1. LOGIN (Google Sign-In)
    ============================================================ */
 const lock = $('lock');
-let pinBuffer = '';
-let pinMode = 'enter';   // 'enter' | 'setup' | 'confirm'
-let pinFirst = '';       // simpan PIN pertama saat setup
-
-async function sha256(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-function initLock() {
-  const hasPin = !!localStorage.getItem(PIN_KEY);
-  pinMode = hasPin ? 'enter' : 'setup';
-  pinBuffer = ''; pinFirst = '';
-  updateLockUI();
-  renderPinDots();
-}
-
-function updateLockUI() {
-  const titles = {
-    enter: ['Masukkan PIN', 'Buka Catatan Keuangan'],
-    setup: ['Buat PIN', 'Amankan aplikasi dengan 6 angka'],
-    confirm: ['Ulangi PIN', 'Masukkan lagi PIN yang sama'],
-  };
-  $('lockTitle').textContent = titles[pinMode][0];
-  $('lockSub').textContent = titles[pinMode][1];
-  $('forgotBtn').style.visibility = pinMode === 'enter' ? 'visible' : 'hidden';
-}
-
-function renderPinDots() {
-  const wrap = $('pinDots');
-  wrap.innerHTML = '';
-  for (let i = 0; i < PIN_LEN; i++) {
-    const d = document.createElement('span');
-    d.className = 'pin-dot' + (i < pinBuffer.length ? ' filled' : '');
-    wrap.appendChild(d);
-  }
-}
 
 function lockError(msg) {
-  $('lockError').textContent = msg || ' ';
+  $('lockError').textContent = msg || ' ';
   if (msg) { lock.classList.add('shake'); setTimeout(() => lock.classList.remove('shake'), 400); }
-}
-
-async function pinComplete() {
-  if (pinMode === 'setup') {
-    pinFirst = pinBuffer; pinBuffer = ''; pinMode = 'confirm';
-    updateLockUI(); renderPinDots(); return;
-  }
-  if (pinMode === 'confirm') {
-    if (pinBuffer === pinFirst) {
-      localStorage.setItem(PIN_KEY, await sha256(pinBuffer));
-      unlock();
-    } else {
-      pinBuffer = ''; pinFirst = ''; pinMode = 'setup';
-      updateLockUI(); renderPinDots(); lockError('PIN tidak cocok, ulangi');
-    }
-    return;
-  }
-  // enter
-  const hash = await sha256(pinBuffer);
-  if (hash === localStorage.getItem(PIN_KEY)) {
-    unlock();
-  } else {
-    pinBuffer = ''; renderPinDots(); lockError('PIN salah');
-  }
-}
-
-function pressKey(k) {
-  lockError('');
-  if (k === 'del') { pinBuffer = pinBuffer.slice(0, -1); renderPinDots(); return; }
-  if (pinBuffer.length >= PIN_LEN) return;
-  pinBuffer += k;
-  renderPinDots();
-  if (pinBuffer.length === PIN_LEN) setTimeout(pinComplete, 120);
 }
 
 function unlock() {
@@ -195,30 +123,12 @@ function unlock() {
 }
 
 function lockApp() {
-  pinBuffer = ''; pinMode = 'enter';
   $('app').hidden = true;
   lock.style.display = 'grid';
-  updateLockUI(); renderPinDots(); lockError('');
+  lockError('');
 }
 
-// Keypad events
-document.querySelectorAll('.key[data-key]').forEach((btn) => {
-  btn.addEventListener('click', () => pressKey(btn.dataset.key));
-});
-// Dukungan keyboard fisik
-document.addEventListener('keydown', (e) => {
-  if (lock.style.display === 'none') return;
-  if (e.key >= '0' && e.key <= '9') pressKey(e.key);
-  else if (e.key === 'Backspace') pressKey('del');
-});
-$('forgotBtn').addEventListener('click', () => {
-  if (confirm('Lupa PIN?\n\nUntuk keamanan, PIN hanya bisa diatur ulang dengan MENGHAPUS semua data transaksi. Lanjutkan?')) {
-    localStorage.removeItem(PIN_KEY);
-    localStorage.removeItem(STORAGE_KEY);
-    transactions = [];
-    initLock();
-  }
-});
+$('lockGoogleBtn').addEventListener('click', signInGoogle);
 
 /* ============================================================
    2. RENDER TRANSAKSI + RINGKASAN
@@ -484,7 +394,6 @@ function closeForm() {
 $('fab').addEventListener('click', () => openForm());
 $('cancelBtn').addEventListener('click', closeForm);
 $('modal').querySelector('.modal-backdrop').addEventListener('click', closeForm);
-$('lockBtn').addEventListener('click', lockApp);
 
 document.querySelectorAll('.type-opt').forEach((btn) => {
   btn.addEventListener('click', () => { currentType = btn.dataset.type; syncTypeToggle(); fillCategories(currentType); });
@@ -597,7 +506,7 @@ function stopRemoteSync() {
 
 async function signInGoogle() {
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  catch { setSyncStatus('Gagal masuk'); }
+  catch { lockError('Gagal masuk, coba lagi'); }
 }
 
 async function signOutGoogle() {
@@ -609,30 +518,28 @@ async function signOutGoogle() {
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   if (user) {
-    $('googleSignInBtn').hidden = true;
     $('userInfo').hidden = false;
     $('userAvatar').src = user.photoURL || '';
     setSyncStatus('Menyinkronkan...');
+    unlock();
     await maybeMigrateLocalData(user.uid);
     startRemoteSync(user.uid);
   } else {
     migrationChecked = false;
     stopRemoteSync();
-    $('googleSignInBtn').hidden = false;
     $('userInfo').hidden = true;
+    lockApp();
   }
 });
 
 window.addEventListener('online', () => currentUser && setSyncStatus('Tersinkron'));
 window.addEventListener('offline', () => setSyncStatus('Offline'));
 
-$('googleSignInBtn').addEventListener('click', signInGoogle);
 $('googleSignOutBtn').addEventListener('click', signOutGoogle);
 
 /* ============================================================
    7. INIT
    ============================================================ */
-initLock();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

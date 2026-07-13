@@ -460,6 +460,162 @@ body::before {
 .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .btn-primary:active { transform: scale(.98); }
 
+/* ===================== Pencarian & filter ===================== */
+.tx-tools { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 14px; }
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 13px;
+  padding: 0 12px; box-shadow: var(--shadow-sm); color: var(--text-faint);
+  transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.search-box:focus-within { border-color: var(--primary); box-shadow: var(--ring); }
+.search-box input {
+  flex: 1; min-width: 0; border: none; background: none; color: var(--text);
+  padding: 11px 0; font-size: 14px; font-family: inherit; font-weight: 500;
+}
+.search-box input:focus { outline: none; }
+.search-box input::placeholder { color: var(--text-faint); }
+#searchClear {
+  background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 14px; padding: 4px; border-radius: 8px;
+}
+#searchClear:hover { color: var(--expense); }
+#filterCat {
+  max-width: 130px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 13px; padding: 0 10px; font-size: 13px; font-family: inherit; font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+#filterCat:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+
+/* ===================== Tombol kecil & util ===================== */
+.chip-btn {
+  background: var(--primary-soft); color: var(--primary-ink); border: none; cursor: pointer;
+  border-radius: 20px; padding: 7px 13px; font-size: 12.5px; font-weight: 700; font-family: inherit;
+  transition: filter .15s var(--ease), transform .15s var(--ease);
+}
+.chip-btn:hover { filter: brightness(.96); }
+.chip-btn:active { transform: scale(.95); }
+.link-btn {
+  display: block; background: none; border: none; color: var(--primary); cursor: pointer;
+  font-size: 13px; font-weight: 700; font-family: inherit; padding: 4px 0 12px;
+}
+.link-danger { color: var(--expense); }
+.hint { font-size: 12px; color: var(--text-faint); margin-top: 10px; line-height: 1.5; }
+.sep { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+.view-sub { font-size: 13px; color: var(--text-soft); font-weight: 600; margin: -10px 0 14px; }
+.card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.card-head .card-title { margin-bottom: 0; }
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; min-width: 0; }
+.btn-sm { padding: 11px 14px; border-radius: 12px; font-size: 13.5px; flex: none; }
+.btn-block { display: block; width: 100%; }
+
+/* ===================== Anggaran ===================== */
+.budget-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.budget-row {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 13px 14px; box-shadow: var(--shadow-sm);
+}
+.budget-row-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.budget-name { font-weight: 700; font-size: 14px; }
+.budget-amt { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-soft); }
+.budget-bar { height: 8px; background: var(--surface-2); border-radius: 5px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--border); }
+.budget-bar-lg { height: 12px; margin-top: 12px; }
+.budget-bar > i { display: block; height: 100%; border-radius: 5px; transition: width .4s var(--ease); }
+.budget-bar > i.ok { background: var(--income); }
+.budget-bar > i.warn { background: #f59f00; }
+.budget-bar > i.over { background: var(--expense); }
+.budget-bar > i.goal { background: var(--grad-brand-soft); }
+.budget-status { font-size: 11.5px; color: var(--text-faint); margin-top: 6px; font-weight: 600; }
+.budget-status.over-text { color: var(--expense); }
+.budget-total-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.budget-total-right { text-align: right; }
+.budget-fields { max-height: 46vh; overflow-y: auto; padding-right: 4px; }
+#bgTotalBar { display: block; height: 100%; border-radius: 5px; }
+#bgTotalBar.ok { background: var(--income); }
+#bgTotalBar.warn { background: #f59f00; }
+#bgTotalBar.over { background: var(--expense); }
+#bgTotalNote { margin-top: 8px; }
+
+/* ===================== Daftar di "Lainnya" ===================== */
+.m-list { list-style: none; display: flex; flex-direction: column; }
+.m-row {
+  display: flex; align-items: center; gap: 11px; padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.m-list .m-row:last-child { border-bottom: none; }
+.m-row-col { flex-direction: column; align-items: stretch; gap: 0; cursor: pointer; }
+.m-row-col .budget-bar { margin: 2px 0 6px; }
+.m-emoji {
+  width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 11px; font-size: 17px; background: var(--surface-2);
+  font-weight: 800; color: var(--text-soft);
+}
+.m-name { flex: 1; min-width: 0; font-weight: 700; font-size: 14px; }
+.m-name small { display: block; font-size: 11.5px; color: var(--text-faint); font-weight: 500; margin-top: 1px; }
+.m-amt { font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.m-amt.neg { color: var(--expense); }
+.m-amt.income { color: var(--income); }
+.m-amt.expense { color: var(--expense); }
+.m-row-total { border-top: 1px solid var(--border-strong); }
+.rec-row, .goal-row { cursor: pointer; }
+.row-del {
+  background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px;
+  padding: 6px; line-height: 1; border-radius: 8px;
+}
+.row-del:hover { color: var(--expense); background: var(--expense-soft); }
+
+/* ===================== Template chips (di form) ===================== */
+.tpl-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
+.tpl-chip {
+  flex-shrink: 0; background: var(--primary-soft); color: var(--primary-ink); border: none; cursor: pointer;
+  border-radius: 20px; padding: 8px 13px; font-size: 12.5px; font-weight: 700; font-family: inherit;
+  white-space: nowrap; transition: filter .15s var(--ease), transform .15s var(--ease);
+}
+.tpl-chip:active { transform: scale(.95); }
+
+/* ===================== Foto struk ===================== */
+.photo-field { margin-bottom: 4px; }
+.photo-preview { position: relative; display: inline-block; margin-bottom: 10px; }
+.photo-preview img {
+  max-height: 130px; max-width: 100%; border-radius: 12px; display: block; cursor: zoom-in;
+  border: 1px solid var(--border-strong); box-shadow: var(--shadow-sm);
+}
+.photo-remove {
+  position: absolute; top: -8px; right: -8px; width: 26px; height: 26px;
+  border-radius: 50%; border: none; cursor: pointer;
+  background: var(--expense); color: #fff; font-size: 12px; font-weight: 700;
+  box-shadow: var(--shadow-md);
+}
+.photo-viewer {
+  position: fixed; inset: 0; z-index: 90; background: rgba(5, 8, 15, .88);
+  display: grid; place-items: center; cursor: zoom-out;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.photo-viewer img { max-width: 94vw; max-height: 88vh; border-radius: 12px; box-shadow: var(--shadow-lg); }
+
+/* ===================== Transfer ===================== */
+.tx-emoji.transfer { background: var(--primary-soft); color: var(--primary-ink); font-weight: 800; }
+.tx-amount.transfer { color: var(--text-soft); }
+
+/* ===================== Laporan ===================== */
+.rep-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.rep-val { font-size: 14px; font-weight: 800; margin-top: 4px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.table-wrap { overflow-x: auto; margin-top: 10px; }
+.rep-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rep-table th, .rep-table td { padding: 7px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+.rep-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rep-table thead th { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
+.rep-table tfoot th { border-bottom: none; font-weight: 800; }
+
+/* ===================== Pengingat & Data ===================== */
+.toggle-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font-size: 14px; font-weight: 600; padding: 4px 0 14px; cursor: pointer;
+}
+.toggle-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
+.data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
 [hidden] { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {

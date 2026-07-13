@@ -4,26 +4,40 @@ Aplikasi web untuk mencatat **pendapatan** dan **pengeluaran** pribadi.
 Bisa dipasang di HP seperti aplikasi biasa dan berfungsi **offline**.
 
 ## Fitur
-- **Login PIN** 6 angka (lokal, offline) — dibuat saat pertama kali dibuka
-- **Sinkronisasi cloud** via Google Sign-In + Firestore — data tersedia di semua
-  perangkat yang login dengan akun Google yang sama, real-time
+- **Login** username/password + Kode Ruang bersama (tersembunyi) — semua
+  perangkat yang login berbagi data yang sama secara real-time via Firestore
 - **Dashboard** informatif: rata-rata pengeluaran/hari, tingkat menabung,
   pengeluaran terbesar, grafik donut per kategori, dan tren 6 bulan
+- **Anggaran per kategori** — batas belanja bulanan dengan progress bar dan
+  peringatan saat mendekati/melebihi batas (tab Anggaran)
+- **Pencarian & filter** — cari catatan/kategori di seluruh riwayat, filter
+  per kategori atau transfer
+- **Multi-dompet** (Tunai, Bank, E-Wallet) + **transfer antar dompet**;
+  saldo per dompet di tab Lainnya
+- **Transaksi berulang** — gaji/tagihan/cicilan otomatis tercatat tiap bulan
+  pada tanggal yang ditentukan (ID deterministik, aman antar perangkat)
+- **Target tabungan** — buat target, tambah dana, pantau progresnya
+- **Template cepat** — simpan isian form sebagai template satu-tap
+- **Laporan** rentang tanggal bebas + ringkasan tahunan per bulan
+- **Ekspor CSV** (per bulan / semua) dan **backup/pulihkan JSON**
+- **Foto struk** — lampirkan foto pada transaksi (dikompres otomatis,
+  ikut tersinkron ke cloud)
+- **Pengingat harian** untuk mencatat (saat aplikasi terbuka)
 - Catat pemasukan & pengeluaran (jumlah, kategori, tanggal, catatan)
 - Ringkasan saldo, total pemasukan & pengeluaran per bulan
 - Filter transaksi per bulan, dengan navigasi bulan sebelumnya/berikutnya (‹ ›)
 - Tap transaksi untuk mengedit, tombol ✕ untuk menghapus
 - Format Rupiah otomatis, mode gelap otomatis
 - Data tersimpan di perangkat (localStorage) — tetap jalan tanpa internet,
-  disinkronkan ke Firestore otomatis saat online & login
+  disinkronkan ke Firestore otomatis saat online & login. Pengaturan
+  (anggaran, target, jadwal, template) ikut tersinkron di `rooms/{room}/meta`.
 
-## Tentang PIN (penting)
-- PIN disimpan sebagai **hash SHA-256**, bukan teks asli.
-- Ini kunci **kenyamanan lokal**, bukan enkripsi data. Datanya sendiri belum
-  dienkripsi, jadi lindungi perangkat Anda seperti biasa.
-- **Lupa PIN?** Demi menghindari akses tak sah, PIN hanya bisa diatur ulang
-  dengan **menghapus seluruh data transaksi**. Catat PIN Anda baik-baik.
-- Tombol 🔒 di kanan atas untuk mengunci aplikasi kapan saja.
+## Tentang login (penting)
+- Login memakai username/password sederhana yang tertanam di `app.js`
+  (default `admin`/`admin`) — ini kunci **kenyamanan**, bukan keamanan kuat.
+- Kunci data sesungguhnya adalah **Kode Ruang** acak yang tersembunyi di
+  `app.js`; siapa pun yang tahu kode itu dapat mengakses data ruang.
+- Tombol keluar di kanan atas untuk keluar dari aplikasi kapan saja.
 
 ## Menjalankan di komputer (lokal)
 Service worker butuh `http://localhost` (tidak bisa dari `file://`).

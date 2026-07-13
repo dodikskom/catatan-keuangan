@@ -92,11 +92,21 @@
           <h2>Transaksi</h2>
           <span id="txCount" class="muted-tag"></span>
         </div>
+
+        <div class="tx-tools">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="searchInput" type="text" placeholder="Cari catatan / kategori…" autocomplete="off" />
+            <button id="searchClear" type="button" aria-label="Bersihkan pencarian" hidden>✕</button>
+          </div>
+          <select id="filterCat" aria-label="Filter kategori"></select>
+        </div>
+
         <ul id="txList" class="tx-list"></ul>
         <div id="emptyState" class="empty">
           <p class="empty-emoji">📝</p>
-          <p>Belum ada transaksi di bulan ini.</p>
-          <p class="empty-sub">Tekan tombol + untuk menambah.</p>
+          <p id="emptyTitle">Belum ada transaksi di bulan ini.</p>
+          <p class="empty-sub" id="emptySub">Tekan tombol + untuk menambah.</p>
         </div>
       </section>
 
@@ -141,6 +151,115 @@
           <div id="barWrap" class="bar-wrap"></div>
         </div>
       </section>
+
+      <!-- ===== View: Anggaran ===== -->
+      <section id="view-budget" class="view" hidden>
+        <div class="content-head">
+          <h2>Anggaran</h2>
+          <button id="editBudgetBtn" class="chip-btn">✎ Atur</button>
+        </div>
+        <p class="view-sub" id="budgetMonthLabel"></p>
+
+        <div class="card" id="budgetSummaryCard" hidden>
+          <div class="budget-total-head">
+            <div>
+              <p class="stat-label">Terpakai</p>
+              <p id="bgTotalSpent" class="stat-value">Rp 0</p>
+            </div>
+            <div class="budget-total-right">
+              <p class="stat-label">Anggaran</p>
+              <p id="bgTotalBudget" class="stat-value">Rp 0</p>
+            </div>
+          </div>
+          <div class="budget-bar budget-bar-lg"><i id="bgTotalBar"></i></div>
+          <p id="bgTotalNote" class="stat-note"></p>
+        </div>
+
+        <ul id="budgetList" class="budget-list"></ul>
+
+        <div id="budgetEmpty" class="empty" hidden>
+          <p class="empty-emoji">🎯</p>
+          <p>Belum ada anggaran.</p>
+          <p class="empty-sub">Tekan "Atur" untuk menetapkan batas belanja per kategori.</p>
+        </div>
+      </section>
+
+      <!-- ===== View: Lainnya ===== -->
+      <section id="view-more" class="view" hidden>
+        <div class="content-head">
+          <h2>Lainnya</h2>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3 class="card-title">Dompet</h3>
+            <button id="transferBtn" class="chip-btn">⇄ Transfer</button>
+          </div>
+          <ul id="walletList" class="m-list"></ul>
+          <p class="hint">Saldo dompet dihitung dari seluruh riwayat transaksi.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3 class="card-title">Target Tabungan</h3>
+            <button id="addGoalBtn" class="chip-btn">＋ Tambah</button>
+          </div>
+          <ul id="goalList" class="m-list"></ul>
+          <p id="goalEmpty" class="mini-empty">Belum ada target. Contoh: "Dana darurat Rp 10 jt".</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3 class="card-title">Transaksi Berulang</h3>
+            <button id="addRecBtn" class="chip-btn">＋ Tambah</button>
+          </div>
+          <ul id="recList" class="m-list"></ul>
+          <p id="recEmpty" class="mini-empty">Gaji, tagihan, atau cicilan yang otomatis tercatat tiap bulan.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3 class="card-title">Template Cepat</h3>
+          </div>
+          <ul id="tplList" class="m-list"></ul>
+          <p id="tplEmpty" class="mini-empty">Simpan template dari form tambah transaksi (tombol "☆ Simpan sebagai template"). Template muncul sebagai tombol cepat di form.</p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Laporan</h3>
+          <div class="field-row">
+            <label class="field"><span>Dari</span><input type="date" id="repFrom" /></label>
+            <label class="field"><span>Sampai</span><input type="date" id="repTo" /></label>
+          </div>
+          <button id="repRunBtn" class="btn btn-primary btn-sm btn-block" type="button">Tampilkan Laporan</button>
+          <div id="repResult"></div>
+          <hr class="sep" />
+          <label class="field"><span>Ringkasan Tahunan</span><select id="repYear"></select></label>
+          <div id="repYearResult"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Pengingat Harian</h3>
+          <label class="toggle-row">
+            <span>Ingatkan saya mencatat transaksi</span>
+            <input type="checkbox" id="remEnabled" />
+          </label>
+          <label class="field"><span>Jam pengingat</span><input type="time" id="remTime" value="20:00" /></label>
+          <p class="hint">Pengingat muncul saat aplikasi/tab sedang terbuka di perangkat ini.</p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Data</h3>
+          <div class="data-grid">
+            <button id="expCsvMonthBtn" class="btn btn-ghost btn-sm" type="button">⬇ CSV bulan ini</button>
+            <button id="expCsvAllBtn" class="btn btn-ghost btn-sm" type="button">⬇ CSV semua</button>
+            <button id="backupBtn" class="btn btn-ghost btn-sm" type="button">🗄 Backup JSON</button>
+            <button id="restoreBtn" class="btn btn-ghost btn-sm" type="button">♻ Pulihkan</button>
+          </div>
+          <input type="file" id="restoreInput" accept=".json,application/json" hidden />
+          <p class="hint">Pulihkan menggabungkan isi backup dengan data sekarang (tidak menghapus apa pun).</p>
+        </div>
+      </section>
     </main>
 
     <button id="fab" class="fab" aria-label="Tambah transaksi">+</button>
@@ -155,21 +274,32 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
         <span>Dashboard</span>
       </button>
+      <button class="tab" data-view="budget">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+        <span>Anggaran</span>
+      </button>
+      <button class="tab" data-view="more">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        <span>Lainnya</span>
+      </button>
     </nav>
 
     <!-- Tooltip grafik -->
     <div id="chartTip" class="chart-tip" hidden></div>
 
-    <!-- ===== Form Modal ===== -->
+    <!-- ===== Form Modal (Transaksi) ===== -->
     <div id="modal" class="modal" hidden>
       <div class="modal-backdrop"></div>
       <form id="txForm" class="sheet">
         <div class="sheet-handle"></div>
         <h3 id="formTitle">Tambah Transaksi</h3>
 
+        <div id="tplRow" class="tpl-chips" hidden></div>
+
         <div class="type-toggle">
-          <button type="button" class="type-opt active" data-type="expense">Pengeluaran</button>
-          <button type="button" class="type-opt" data-type="income">Pemasukan</button>
+          <button type="button" class="type-opt active" data-type="expense">Keluar</button>
+          <button type="button" class="type-opt" data-type="income">Masuk</button>
+          <button type="button" class="type-opt" data-type="transfer">Transfer</button>
         </div>
 
         <label class="field">
@@ -180,10 +310,21 @@
           </div>
         </label>
 
-        <label class="field">
+        <label class="field" id="categoryField">
           <span>Kategori</span>
           <select id="category"></select>
         </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span id="walletLabel">Dompet</span>
+            <select id="wallet"></select>
+          </label>
+          <label class="field" id="walletToField" hidden>
+            <span>Ke dompet</span>
+            <select id="walletTo"></select>
+          </label>
+        </div>
 
         <label class="field">
           <span>Tanggal</span>
@@ -195,11 +336,95 @@
           <input type="text" id="note" placeholder="mis. Makan siang" autocomplete="off" />
         </label>
 
+        <div class="photo-field">
+          <input type="file" id="photoInput" accept="image/*" hidden />
+          <button type="button" id="photoBtn" class="link-btn">📎 Lampirkan foto struk</button>
+          <div id="photoPreviewWrap" class="photo-preview" hidden>
+            <img id="photoPreview" alt="Foto struk" />
+            <button type="button" id="removePhotoBtn" class="photo-remove" aria-label="Hapus foto">✕</button>
+          </div>
+        </div>
+
+        <button type="button" id="saveTplBtn" class="link-btn">☆ Simpan sebagai template</button>
+
         <div class="form-actions">
           <button type="button" id="cancelBtn" class="btn btn-ghost">Batal</button>
           <button type="submit" class="btn btn-primary">Simpan</button>
         </div>
       </form>
+    </div>
+
+    <!-- ===== Modal Anggaran ===== -->
+    <div id="budgetModal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <form id="budgetForm" class="sheet">
+        <div class="sheet-handle"></div>
+        <h3>Atur Anggaran Bulanan</h3>
+        <p class="hint" style="margin-top:-10px;margin-bottom:14px">Kosongkan untuk kategori tanpa batas.</p>
+        <div id="budgetFields" class="budget-fields"></div>
+        <div class="form-actions">
+          <button type="button" id="budgetCancel" class="btn btn-ghost">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ===== Modal Target Tabungan ===== -->
+    <div id="goalModal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <form id="goalForm" class="sheet">
+        <div class="sheet-handle"></div>
+        <h3 id="goalTitle">Tambah Target</h3>
+        <label class="field"><span>Nama target</span><input type="text" id="goalName" placeholder="mis. Dana darurat" required /></label>
+        <label class="field">
+          <span>Target</span>
+          <div class="amount-input"><span class="prefix">Rp</span><input type="text" id="goalTarget" inputmode="numeric" placeholder="0" autocomplete="off" required /></div>
+        </label>
+        <label class="field">
+          <span>Sudah terkumpul</span>
+          <div class="amount-input"><span class="prefix">Rp</span><input type="text" id="goalSaved" inputmode="numeric" placeholder="0" autocomplete="off" /></div>
+        </label>
+        <button type="button" id="goalDeleteBtn" class="link-btn link-danger" hidden>🗑 Hapus target ini</button>
+        <div class="form-actions">
+          <button type="button" id="goalCancel" class="btn btn-ghost">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ===== Modal Transaksi Berulang ===== -->
+    <div id="recModal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <form id="recForm" class="sheet">
+        <div class="sheet-handle"></div>
+        <h3 id="recTitle">Tambah Transaksi Berulang</h3>
+        <div class="field-row">
+          <label class="field"><span>Jenis</span>
+            <select id="recType">
+              <option value="expense">Pengeluaran</option>
+              <option value="income">Pemasukan</option>
+            </select>
+          </label>
+          <label class="field"><span>Tiap tanggal</span><input type="number" id="recDay" min="1" max="31" value="1" required /></label>
+        </div>
+        <label class="field"><span>Kategori</span><select id="recCat"></select></label>
+        <label class="field">
+          <span>Jumlah</span>
+          <div class="amount-input"><span class="prefix">Rp</span><input type="text" id="recAmount" inputmode="numeric" placeholder="0" autocomplete="off" required /></div>
+        </label>
+        <label class="field"><span>Dompet</span><select id="recWallet"></select></label>
+        <label class="field"><span>Catatan (opsional)</span><input type="text" id="recNote" placeholder="mis. Listrik PLN" autocomplete="off" /></label>
+        <button type="button" id="recDeleteBtn" class="link-btn link-danger" hidden>🗑 Hapus jadwal ini</button>
+        <div class="form-actions">
+          <button type="button" id="recCancel" class="btn btn-ghost">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ===== Penampil foto ===== -->
+    <div id="photoViewer" class="photo-viewer" hidden>
+      <img id="photoViewerImg" alt="Foto struk" />
     </div>
   </div>
 

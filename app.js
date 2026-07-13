@@ -1,14 +1,16 @@
 /* ============================================================
    Catatan Keuangan — PWA pencatatan pemasukan & pengeluaran
-   - Login dengan Google (sekali masuk, otomatis tersinkron ke Firestore)
+   - Login username/password + Kode Ruang bersama
+   - Semua perangkat dengan Kode Ruang yang sama berbagi data yang sama
+     (realtime via Firestore, tanpa perlu akun Google)
    - Dashboard grafik (donut kategori + tren 6 bulan)
-   - Data di localStorage (offline-first), disinkronkan ke Firestore saat login.
+   - Data di localStorage (offline-first), disinkronkan ke Firestore per-ruang.
    ============================================================ */
 
 import { firebaseConfig } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+  getAuth, signInAnonymously, onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, collection, doc, setDoc, deleteDoc,
@@ -19,7 +21,12 @@ const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
 
+// Kredensial login (hardcode, sesuai permintaan)
+const ADMIN_USER = 'admin';
+const ADMIN_PASS = 'admin';
+
 const STORAGE_KEY = 'catatan-keuangan-v1';
+const ROOM_KEY = 'catatan-keuangan-room'; // kode ruang aktif tersimpan agar tidak perlu login ulang
 
 const CATEGORIES = {
   expense: [
@@ -54,7 +61,8 @@ let currentType = 'expense';
 let editId = null;
 let selectedMonth = ymNow();
 let activeView = 'tx';
-let currentUser = null;
+let currentRoom = null;      // kode ruang yang sedang aktif
+let authReady = false;       // sudah anonymous sign-in ke Firebase?
 let unsubscribeSnapshot = null;
 let migrationChecked = false;
 
@@ -107,7 +115,7 @@ function load() {
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions)); }
 
 /* ============================================================
-   1. LOGIN (Google Sign-In)
+   1. LOGIN (username/password + Kode Ruang)
    ============================================================ */
 const lock = $('lock');
 
@@ -128,7 +136,50 @@ function lockApp() {
   lockError('');
 }
 
-$('lockGoogleBtn').addEventListener('click', signInGoogle);
+// Normalisasi kode ruang jadi id dokumen Firestore yang valid & konsisten
+function normalizeRoom(raw) {
+  return (raw || '')
+    .trim().toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-') // hanya huruf/angka/-/_ ; sisanya jadi '-'
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+// Masuk ke sebuah ruang: simpan, sambungkan sync, buka aplikasi
+async function enterRoom(room) {
+  currentRoom = room;
+  localStorage.setItem(ROOM_KEY, room);
+  $('roomLabel').textContent = room;
+  $('userInfo').hidden = false;
+  setSyncStatus('Menyinkronkan...');
+  unlock();
+
+  // Pastikan sudah terautentikasi (anonim) sebelum akses Firestore
+  if (!authReady) {
+    try { await signInAnonymously(auth); authReady = true; }
+    catch { setSyncStatus('Gagal sinkron'); return; }
+  }
+  await maybeMigrateLocalData(room);
+  startRemoteSync(room);
+}
+
+$('lockForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const user = $('lockUser').value.trim();
+  const pass = $('lockPass').value;
+  const room = normalizeRoom($('lockRoom').value);
+
+  if (user !== ADMIN_USER || pass !== ADMIN_PASS) {
+    lockError('Username atau password salah');
+    return;
+  }
+  if (!room) {
+    lockError('Isi Kode Ruang (mis. keluarga2026)');
+    return;
+  }
+  lockError('');
+  enterRoom(room);
+});
 
 /* ============================================================
    2. RENDER TRANSAKSI + RINGKASAN
@@ -436,25 +487,21 @@ $('txList').addEventListener('click', (e) => {
 });
 
 $('monthPicker').addEventListener('change', () => { selectedMonth = $('monthPicker').value || ymNow(); render(); });
-$('monthBtn').addEventListener('click', () => {
-  const mp = $('monthPicker');
-  mp.showPicker ? mp.showPicker() : mp.focus();
-});
 $('prevMonthBtn').addEventListener('click', () => { selectedMonth = shiftMonth(selectedMonth, -1); render(); });
 $('nextMonthBtn').addEventListener('click', () => { selectedMonth = shiftMonth(selectedMonth, 1); render(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('modal').hidden) closeForm(); });
 
 /* ============================================================
-   6. SINKRONISASI CLOUD (Firebase Auth + Firestore)
+   6. SINKRONISASI CLOUD (Firestore per Kode Ruang)
    ============================================================ */
 function setSyncStatus(text) { $('syncStatus').textContent = text; }
 
-function txDocRef(uid, id) { return doc(db, 'users', uid, 'transactions', id); }
+function txDocRef(room, id) { return doc(db, 'rooms', room, 'transactions', id); }
 
 async function syncUpsertTx(tx) {
-  if (!currentUser) return;
+  if (!currentRoom || !authReady) return;
   try {
-    await setDoc(txDocRef(currentUser.uid, tx.id), {
+    await setDoc(txDocRef(currentRoom, tx.id), {
       type: tx.type, amount: tx.amount, category: tx.category,
       date: tx.date, note: tx.note || '', createdAt: tx.createdAt,
     });
@@ -462,14 +509,16 @@ async function syncUpsertTx(tx) {
 }
 
 async function syncDeleteTx(id) {
-  if (!currentUser) return;
-  try { await deleteDoc(txDocRef(currentUser.uid, id)); } catch { /* akan di-retry otomatis saat online */ }
+  if (!currentRoom || !authReady) return;
+  try { await deleteDoc(txDocRef(currentRoom, id)); } catch { /* akan di-retry otomatis saat online */ }
 }
 
-async function maybeMigrateLocalData(uid) {
+// Saat masuk ruang untuk pertama kali: jika ruang masih kosong tapi ada data lokal,
+// unggah data lokal sebagai isi awal ruang. Jika ruang sudah berisi, snapshot yang menentukan.
+async function maybeMigrateLocalData(room) {
   if (migrationChecked) return;
   migrationChecked = true;
-  const col = collection(db, 'users', uid, 'transactions');
+  const col = collection(db, 'rooms', room, 'transactions');
   const snap = await getDocs(col);
   if (!snap.empty || transactions.length === 0) return;
 
@@ -479,18 +528,18 @@ async function maybeMigrateLocalData(uid) {
   for (const chunk of chunks) {
     const batch = writeBatch(db);
     for (const tx of chunk) {
-      batch.set(txDocRef(uid, tx.id), {
+      batch.set(txDocRef(room, tx.id), {
         type: tx.type, amount: tx.amount, category: tx.category,
         date: tx.date, note: tx.note || '', createdAt: tx.createdAt,
       });
     }
     await batch.commit();
   }
-  await setDoc(doc(db, 'users', uid), { migratedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'rooms', room), { createdAt: serverTimestamp() }, { merge: true });
 }
 
-function startRemoteSync(uid) {
-  const col = collection(db, 'users', uid, 'transactions');
+function startRemoteSync(room) {
+  const col = collection(db, 'rooms', room, 'transactions');
   unsubscribeSnapshot = onSnapshot(col, (snap) => {
     if (snap.metadata.hasPendingWrites) return;
     transactions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -504,42 +553,41 @@ function stopRemoteSync() {
   if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
 }
 
-async function signInGoogle() {
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  catch { lockError('Gagal masuk, coba lagi'); }
-}
-
-async function signOutGoogle() {
-  if (!confirm('Keluar dari akun Google?\n\nData tetap tersimpan di perangkat ini, tapi tidak akan tersinkron sampai Anda masuk kembali.')) return;
+function signOut() {
+  if (!confirm('Keluar & ganti ruang?\n\nData tetap aman di cloud. Anda perlu login lagi untuk masuk kembali.')) return;
   stopRemoteSync();
-  await signOut(auth);
+  migrationChecked = false;
+  currentRoom = null;
+  localStorage.removeItem(ROOM_KEY);
+  transactions = [];
+  save();
+  $('userInfo').hidden = true;
+  $('lockPass').value = '';
+  lockApp();
 }
 
-onAuthStateChanged(auth, async (user) => {
-  currentUser = user;
-  if (user) {
-    $('userInfo').hidden = false;
-    $('userAvatar').src = user.photoURL || '';
-    setSyncStatus('Menyinkronkan...');
-    unlock();
-    await maybeMigrateLocalData(user.uid);
-    startRemoteSync(user.uid);
-  } else {
-    migrationChecked = false;
-    stopRemoteSync();
-    $('userInfo').hidden = true;
-    lockApp();
-  }
+// Anonymous sign-in dilacak sekali; setelah siap, auto-masuk ruang tersimpan (jika ada)
+onAuthStateChanged(auth, (user) => {
+  authReady = !!user;
 });
 
-window.addEventListener('online', () => currentUser && setSyncStatus('Tersinkron'));
+window.addEventListener('online', () => currentRoom && setSyncStatus('Tersinkron'));
 window.addEventListener('offline', () => setSyncStatus('Offline'));
 
-$('googleSignOutBtn').addEventListener('click', signOutGoogle);
+$('signOutBtn').addEventListener('click', signOut);
 
 /* ============================================================
    7. INIT
    ============================================================ */
+
+// Jika sudah pernah masuk ruang di perangkat ini, buka langsung tanpa login ulang.
+(function autoEnter() {
+  const savedRoom = localStorage.getItem(ROOM_KEY);
+  if (savedRoom) {
+    $('lockUser').value = ADMIN_USER;
+    enterRoom(savedRoom);
+  }
+})();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

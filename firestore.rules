@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// ============================================================
+// Aturan keamanan Firestore untuk "Catatan Keuangan" (mode Kode Ruang)
+// ------------------------------------------------------------
+// Model: siapa pun yang login (anonim) DAN tahu Kode Ruang bisa
+// membaca/menulis data di ruang itu. Kode Ruang = "kata sandi" ruang.
+//
+// Cara pasang:
+//   Firebase Console → Firestore Database → Rules → tempel isi ini → Publish
+//   Firebase Console → Authentication → Sign-in method → aktifkan "Anonymous"
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Dokumen ruang (metadata) + semua transaksi di dalamnya
+    match /rooms/{room} {
+      // Boleh baca/tulis metadata ruang bila sudah login (anonim pun boleh)
+      allow read, write: if request.auth != null;
+
+      match /transactions/{txId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Tutup akses ke path lain
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="description" content="Aplikasi pencatatan pendapatan dan pengeluaran pribadi" />
+  <title>Catatan Keuangan</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== Lock Screen (PIN) ===== -->
+  <div id="lock" class="lock">
+    <div class="lock-inner">
+      <div class="lock-logo">Rp</div>
+      <h1 id="lockTitle" class="lock-title">Masukkan PIN</h1>
+      <p id="lockSub" class="lock-sub">Buka Catatan Keuangan</p>
+
+      <div id="pinDots" class="pin-dots"></div>
+      <p id="lockError" class="lock-error">&nbsp;</p>
+
+      <div class="keypad">
+        <button class="key" data-key="1">1</button>
+        <button class="key" data-key="2">2</button>
+        <button class="key" data-key="3">3</button>
+        <button class="key" data-key="4">4</button>
+        <button class="key" data-key="5">5</button>
+        <button class="key" data-key="6">6</button>
+        <button class="key" data-key="7">7</button>
+        <button class="key" data-key="8">8</button>
+        <button class="key" data-key="9">9</button>
+        <button class="key key-ghost" id="forgotBtn">Lupa?</button>
+        <button class="key" data-key="0">0</button>
+        <button class="key key-ghost" data-key="del" aria-label="Hapus">⌫</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Aplikasi ===== -->
+  <div id="app" hidden>
+    <header class="header">
+      <div class="header-top">
+        <div>
+          <p class="header-label">Saldo Bulan Ini</p>
+          <h1 id="balance" class="balance">Rp 0</h1>
+        </div>
+        <div class="header-actions">
+          <button id="monthBtn" class="month-btn" aria-label="Pilih bulan">
+            <span id="monthLabel">Bulan</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <button id="lockBtn" class="icon-btn" aria-label="Kunci aplikasi" title="Kunci">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="summary">
+        <div class="summary-card">
+          <span class="summary-icon">▲</span>
+          <div>
+            <p class="summary-label">Pemasukan</p>
+            <p id="totalIncome" class="summary-value">Rp 0</p>
+          </div>
+        </div>
+        <div class="summary-card">
+          <span class="summary-icon">▼</span>
+          <div>
+            <p class="summary-label">Pengeluaran</p>
+            <p id="totalExpense" class="summary-value">Rp 0</p>
+          </div>
+        </div>
+      </div>
+      <input type="month" id="monthPicker" class="month-picker-hidden" />
+    </header>
+
+    <main class="content">
+      <!-- ===== View: Transaksi ===== -->
+      <section id="view-tx" class="view">
+        <div class="content-head">
+          <h2>Transaksi</h2>
+          <span id="txCount" class="muted-tag"></span>
+        </div>
+        <ul id="txList" class="tx-list"></ul>
+        <div id="emptyState" class="empty">
+          <p class="empty-emoji">📝</p>
+          <p>Belum ada transaksi di bulan ini.</p>
+          <p class="empty-sub">Tekan tombol + untuk menambah.</p>
+        </div>
+      </section>
+
+      <!-- ===== View: Dashboard ===== -->
+      <section id="view-dash" class="view" hidden>
+        <div class="stat-grid">
+          <div class="stat-tile">
+            <p class="stat-label">Rata-rata / hari</p>
+            <p id="statAvg" class="stat-value">Rp 0</p>
+            <p class="stat-note">pengeluaran</p>
+          </div>
+          <div class="stat-tile">
+            <p class="stat-label">Tingkat Menabung</p>
+            <p id="statSave" class="stat-value">0%</p>
+            <p id="statSaveNote" class="stat-note">dari pemasukan</p>
+          </div>
+          <div class="stat-tile">
+            <p class="stat-label">Pengeluaran terbesar</p>
+            <p id="statBig" class="stat-value">Rp 0</p>
+            <p id="statBigNote" class="stat-note">—</p>
+          </div>
+          <div class="stat-tile">
+            <p class="stat-label">Jumlah transaksi</p>
+            <p id="statCount" class="stat-value">0</p>
+            <p class="stat-note">bulan ini</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Pengeluaran per Kategori</h3>
+          <div id="donutWrap" class="donut-wrap"></div>
+          <ul id="catLegend" class="cat-legend"></ul>
+          <p id="dashEmpty1" class="mini-empty" hidden>Belum ada pengeluaran bulan ini.</p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Tren 6 Bulan</h3>
+          <div class="chart-legend">
+            <span class="lg-item"><i class="lg-dot" style="background:var(--income)"></i>Pemasukan</span>
+            <span class="lg-item"><i class="lg-dot" style="background:var(--expense)"></i>Pengeluaran</span>
+          </div>
+          <div id="barWrap" class="bar-wrap"></div>
+        </div>
+      </section>
+    </main>
+
+    <button id="fab" class="fab" aria-label="Tambah transaksi">+</button>
+
+    <!-- Bottom Nav -->
+    <nav class="tabbar">
+      <button class="tab active" data-view="tx">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span>Transaksi</span>
+      </button>
+      <button class="tab" data-view="dash">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        <span>Dashboard</span>
+      </button>
+    </nav>
+
+    <!-- Tooltip grafik -->
+    <div id="chartTip" class="chart-tip" hidden></div>
+
+    <!-- ===== Form Modal ===== -->
+    <div id="modal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <form id="txForm" class="sheet">
+        <div class="sheet-handle"></div>
+        <h3 id="formTitle">Tambah Transaksi</h3>
+
+        <div class="type-toggle">
+          <button type="button" class="type-opt active" data-type="expense">Pengeluaran</button>
+          <button type="button" class="type-opt" data-type="income">Pemasukan</button>
+        </div>
+
+        <label class="field">
+          <span>Jumlah</span>
+          <div class="amount-input">
+            <span class="prefix">Rp</span>
+            <input type="text" id="amount" inputmode="numeric" placeholder="0" autocomplete="off" required />
+          </div>
+        </label>
+
+        <label class="field">
+          <span>Kategori</span>
+          <select id="category"></select>
+        </label>
+
+        <label class="field">
+          <span>Tanggal</span>
+          <input type="date" id="date" required />
+        </label>
+
+        <label class="field">
+          <span>Catatan (opsional)</span>
+          <input type="text" id="note" placeholder="mis. Makan siang" autocomplete="off" />
+        </label>
+
+        <div class="form-actions">
+          <button type="button" id="cancelBtn" class="btn btn-ghost">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

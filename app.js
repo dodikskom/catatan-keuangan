@@ -1,9 +1,23 @@
 /* ============================================================
    Catatan Keuangan — PWA pencatatan pemasukan & pengeluaran
-   - Login PIN lokal (offline)
+   - Login PIN lokal (offline) + sinkronisasi cloud via Google/Firestore
    - Dashboard grafik (donut kategori + tren 6 bulan)
-   - Data di localStorage. Ganti load()/save() untuk backend online.
+   - Data di localStorage (offline-first), disinkronkan ke Firestore saat login.
    ============================================================ */
+
+import { firebaseConfig } from './firebase-config.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {
+  initializeFirestore, persistentLocalCache, collection, doc, setDoc, deleteDoc,
+  onSnapshot, getDocs, writeBatch, serverTimestamp,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
 
 const STORAGE_KEY = 'catatan-keuangan-v1';
 const PIN_KEY = 'ck-pin';        // hash SHA-256 dari PIN
@@ -42,6 +56,9 @@ let currentType = 'expense';
 let editId = null;
 let selectedMonth = ymNow();
 let activeView = 'tx';
+let currentUser = null;
+let unsubscribeSnapshot = null;
+let migrationChecked = false;
 
 // ---------- Helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -71,6 +88,11 @@ function monthName(ym) {
 function monthShort(ym) {
   const [y, m] = ym.split('-');
   return new Date(y, m - 1, 1).toLocaleDateString('id-ID', { month: 'short' });
+}
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 function catInfo(type, id) {
   return (CATEGORIES[type] || []).find((c) => c.id === id) || { label: 'Lainnya', emoji: '📦' };
@@ -478,13 +500,17 @@ $('txForm').addEventListener('submit', (e) => {
   const amount = Number($('amount').value.replace(/\D/g, ''));
   if (!amount || amount <= 0) { $('amount').focus(); return; }
   const data = { type: currentType, amount, category: $('category').value, date: $('date').value, note: $('note').value.trim() };
+  let savedTx;
   if (editId) {
     const idx = transactions.findIndex((t) => t.id === editId);
     if (idx !== -1) transactions[idx] = { ...transactions[idx], ...data };
+    savedTx = transactions[idx];
   } else {
-    transactions.push({ id: uid(), createdAt: Date.now(), ...data });
+    savedTx = { id: uid(), createdAt: Date.now(), ...data };
+    transactions.push(savedTx);
   }
   save();
+  syncUpsertTx(savedTx);
   selectedMonth = data.date.slice(0, 7);
   render();
   closeForm();
@@ -496,6 +522,7 @@ $('txList').addEventListener('click', (e) => {
   if (confirm('Hapus transaksi ini?')) {
     transactions = transactions.filter((t) => t.id !== btn.dataset.id);
     save(); render();
+    syncDeleteTx(btn.dataset.id);
   }
 });
 
@@ -504,10 +531,106 @@ $('monthBtn').addEventListener('click', () => {
   const mp = $('monthPicker');
   mp.showPicker ? mp.showPicker() : mp.focus();
 });
+$('prevMonthBtn').addEventListener('click', () => { selectedMonth = shiftMonth(selectedMonth, -1); render(); });
+$('nextMonthBtn').addEventListener('click', () => { selectedMonth = shiftMonth(selectedMonth, 1); render(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('modal').hidden) closeForm(); });
 
 /* ============================================================
-   6. INIT
+   6. SINKRONISASI CLOUD (Firebase Auth + Firestore)
+   ============================================================ */
+function setSyncStatus(text) { $('syncStatus').textContent = text; }
+
+function txDocRef(uid, id) { return doc(db, 'users', uid, 'transactions', id); }
+
+async function syncUpsertTx(tx) {
+  if (!currentUser) return;
+  try {
+    await setDoc(txDocRef(currentUser.uid, tx.id), {
+      type: tx.type, amount: tx.amount, category: tx.category,
+      date: tx.date, note: tx.note || '', createdAt: tx.createdAt,
+    });
+  } catch { /* offline: Firestore SDK meng-queue otomatis (persistentLocalCache) */ }
+}
+
+async function syncDeleteTx(id) {
+  if (!currentUser) return;
+  try { await deleteDoc(txDocRef(currentUser.uid, id)); } catch { /* akan di-retry otomatis saat online */ }
+}
+
+async function maybeMigrateLocalData(uid) {
+  if (migrationChecked) return;
+  migrationChecked = true;
+  const col = collection(db, 'users', uid, 'transactions');
+  const snap = await getDocs(col);
+  if (!snap.empty || transactions.length === 0) return;
+
+  setSyncStatus('Menyinkronkan...');
+  const chunks = [];
+  for (let i = 0; i < transactions.length; i += 500) chunks.push(transactions.slice(i, i + 500));
+  for (const chunk of chunks) {
+    const batch = writeBatch(db);
+    for (const tx of chunk) {
+      batch.set(txDocRef(uid, tx.id), {
+        type: tx.type, amount: tx.amount, category: tx.category,
+        date: tx.date, note: tx.note || '', createdAt: tx.createdAt,
+      });
+    }
+    await batch.commit();
+  }
+  await setDoc(doc(db, 'users', uid), { migratedAt: serverTimestamp() }, { merge: true });
+}
+
+function startRemoteSync(uid) {
+  const col = collection(db, 'users', uid, 'transactions');
+  unsubscribeSnapshot = onSnapshot(col, (snap) => {
+    if (snap.metadata.hasPendingWrites) return;
+    transactions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    save();
+    render();
+    setSyncStatus('Tersinkron');
+  }, () => setSyncStatus('Gagal sinkron'));
+}
+
+function stopRemoteSync() {
+  if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+}
+
+async function signInGoogle() {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch { setSyncStatus('Gagal masuk'); }
+}
+
+async function signOutGoogle() {
+  if (!confirm('Keluar dari akun Google?\n\nData tetap tersimpan di perangkat ini, tapi tidak akan tersinkron sampai Anda masuk kembali.')) return;
+  stopRemoteSync();
+  await signOut(auth);
+}
+
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  if (user) {
+    $('googleSignInBtn').hidden = true;
+    $('userInfo').hidden = false;
+    $('userAvatar').src = user.photoURL || '';
+    setSyncStatus('Menyinkronkan...');
+    await maybeMigrateLocalData(user.uid);
+    startRemoteSync(user.uid);
+  } else {
+    migrationChecked = false;
+    stopRemoteSync();
+    $('googleSignInBtn').hidden = false;
+    $('userInfo').hidden = true;
+  }
+});
+
+window.addEventListener('online', () => currentUser && setSyncStatus('Tersinkron'));
+window.addEventListener('offline', () => setSyncStatus('Offline'));
+
+$('googleSignInBtn').addEventListener('click', signInGoogle);
+$('googleSignOutBtn').addEventListener('click', signOutGoogle);
+
+/* ============================================================
+   7. INIT
    ============================================================ */
 initLock();
 

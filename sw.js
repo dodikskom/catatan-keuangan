@@ -1,5 +1,5 @@
 /* Service Worker — cache aset agar aplikasi bisa dibuka offline */
-const CACHE = 'catatan-keuangan-v2';
+const CACHE = 'catatan-keuangan-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -26,6 +26,7 @@ self.addEventListener('activate', (e) => {
 // Strategi: cache-first untuk aset, network fallback
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request).then((cached) => {
       return (

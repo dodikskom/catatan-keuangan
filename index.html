@@ -49,12 +49,31 @@
           <h1 id="balance" class="balance">Rp 0</h1>
         </div>
         <div class="header-actions">
+          <button id="prevMonthBtn" class="icon-btn" aria-label="Bulan sebelumnya">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
           <button id="monthBtn" class="month-btn" aria-label="Pilih bulan">
             <span id="monthLabel">Bulan</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
           </button>
+          <button id="nextMonthBtn" class="icon-btn" aria-label="Bulan berikutnya">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
           <button id="lockBtn" class="icon-btn" aria-label="Kunci aplikasi" title="Kunci">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="sync-bar">
+        <button id="googleSignInBtn" class="sync-btn" hidden>
+          <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.4-6.4C35.6 3 30.1 1 24 1 14.8 1 6.9 6.4 3.2 14.1l7.5 5.8C12.6 14.1 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.8c4.3-4 7.2-9.9 7.2-17.5z"/><path fill="#FBBC05" d="M10.7 19.9c-.5 1.5-.8 3.2-.8 4.9s.3 3.4.8 4.9l-7.5 5.8C1.9 32.1 1 28.2 1 24s.9-8.1 2.4-11.5z"/><path fill="#34A853" d="M24 47c6.1 0 11.6-2 15.5-5.4l-7.4-5.8c-2.1 1.5-4.8 2.4-8.1 2.4-6.2 0-11.4-4.6-13.2-10.4l-7.5 5.8C6.9 41.6 14.8 47 24 47z"/></svg>
+          <span>Masuk dengan Google</span>
+        </button>
+        <div id="userInfo" class="user-info" hidden>
+          <img id="userAvatar" class="user-avatar" alt="" />
+          <span id="syncStatus" class="sync-status">Tersimpan lokal</span>
+          <button id="googleSignOutBtn" class="icon-btn icon-btn-sm" aria-label="Keluar dari akun Google" title="Keluar akun">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
           </button>
         </div>
       </div>
@@ -195,6 +214,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

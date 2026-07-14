@@ -162,6 +162,102 @@ function download(name, content, type) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+// Getar ringan (jika didukung) — memberi umpan balik taktil pada aksi penting
+function haptic(ms = 12) { try { navigator.vibrate?.(ms); } catch { /* abaikan */ } }
+
+/* ---------- Toast (notifikasi mengambang) ---------- */
+const TOAST_ICONS = { ok: '✓', error: '!', info: 'i' };
+function toast(msg, { type = 'ok', duration = 3200, action } = {}) {
+  const wrap = $('toastWrap');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-ico">${TOAST_ICONS[type] || 'i'}</span>
+    <span class="toast-msg">${escapeHtml(msg)}</span>`;
+  let timer;
+  const dismiss = () => {
+    if (el.dataset.leaving) return;
+    el.dataset.leaving = '1';
+    clearTimeout(timer);
+    el.classList.add('leaving');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+    setTimeout(() => el.remove(), 400); // fallback bila animasi dimatikan
+  };
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'toast-action'; btn.textContent = action.label;
+    btn.addEventListener('click', () => { haptic(); action.onClick(); dismiss(); });
+    el.appendChild(btn);
+  }
+  wrap.appendChild(el);
+  // Batasi jumlah toast di layar
+  while (wrap.children.length > 3) wrap.firstElementChild.remove();
+  timer = setTimeout(dismiss, duration);
+  return dismiss;
+}
+
+/* ---------- Dialog konfirmasi / prompt (pengganti confirm/prompt native) ---------- */
+let dlgResolve = null;
+function closeDialog(value) {
+  $('dialogModal').hidden = true;
+  if (!anyModalOpen()) document.body.style.overflow = '';
+  const r = dlgResolve; dlgResolve = null;
+  if (r) r(value);
+}
+// Ada modal lain yang masih terbuka? (agar overflow body tidak keliru direset)
+function anyModalOpen() {
+  return ['modal', 'budgetModal', 'goalModal', 'recModal'].some((id) => !$(id).hidden);
+}
+function openDialog({ title, body = '', icon = '⚠️', danger = false, confirmText = 'OK', cancelText = 'Batal', input }) {
+  return new Promise((resolve) => {
+    dlgResolve = resolve;
+    $('dlgTitle').textContent = title;
+    $('dlgBody').textContent = body;
+    $('dlgBody').hidden = !body;
+    $('dlgIcon').textContent = icon;
+    $('dlgIcon').className = 'dlg-icon' + (danger ? ' danger' : '');
+    $('dlgConfirm').textContent = confirmText;
+    $('dlgConfirm').className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+    $('dlgCancel').textContent = cancelText;
+    const wrap = $('dlgInputWrap');
+    wrap.hidden = !input;
+    if (input) {
+      const el = $('dlgInput');
+      $('dlgPrefix').textContent = input.prefix ?? 'Rp';
+      $('dlgPrefix').style.display = input.prefix === '' ? 'none' : '';
+      el.value = '';
+      el.placeholder = input.placeholder || '0';
+      el.inputMode = input.numeric === false ? 'text' : 'numeric';
+      el.dataset.numeric = input.numeric === false ? '' : '1';
+    }
+    $('dialogModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => (input ? $('dlgInput') : $('dlgConfirm')).focus(), 260);
+  });
+}
+// confirm(...) → Promise<boolean>. Default: aksi hapus (merah, ikon 🗑).
+function confirmDialog(title, body, opts = {}) {
+  return openDialog({
+    title, body,
+    icon: opts.icon || '🗑',
+    danger: opts.danger ?? true,
+    confirmText: opts.confirmText || 'Hapus',
+    cancelText: opts.cancelText || 'Batal',
+  }).then((v) => v !== null && v !== false);
+}
+$('dialogForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!$('dlgInputWrap').hidden) { closeDialog($('dlgInput').value); return; }
+  closeDialog(true);
+});
+$('dlgCancel').addEventListener('click', () => closeDialog(null));
+// Pemisah ribuan otomatis saat dialog dipakai untuk input Rupiah
+$('dlgInput').addEventListener('input', () => {
+  const el = $('dlgInput');
+  if (!el.dataset.numeric) return;
+  const digits = el.value.replace(/\D/g, '');
+  el.value = digits ? Number(digits).toLocaleString('id-ID') : '';
+});
+
 // ---------- Penyimpanan ----------
 function load() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
@@ -673,7 +769,7 @@ $('photoInput').addEventListener('change', async () => {
     pendingPhoto = await compressImage(file);
     updatePhotoPreview();
   } catch {
-    alert('Foto tidak dapat dilampirkan (terlalu besar atau format tidak didukung).');
+    toast('Foto tidak dapat dilampirkan (terlalu besar atau format tidak didukung).', { type: 'error' });
   }
 });
 $('removePhotoBtn').addEventListener('click', () => { pendingPhoto = ''; updatePhotoPreview(); });
@@ -689,7 +785,7 @@ $('txForm').addEventListener('submit', (e) => {
   if (!amount || amount <= 0) { $('amount').focus(); return; }
   const isTransfer = currentType === 'transfer';
   if (isTransfer && $('wallet').value === $('walletTo').value) {
-    alert('Dompet asal dan tujuan tidak boleh sama.');
+    toast('Dompet asal dan tujuan tidak boleh sama.', { type: 'error' });
     return;
   }
   const data = {
@@ -709,21 +805,43 @@ $('txForm').addEventListener('submit', (e) => {
     savedTx = { id: uid(), createdAt: Date.now(), ...data };
     transactions.push(savedTx);
   }
+  const wasEdit = !!editId;
   save();
   syncUpsertTx(savedTx);
   selectedMonth = data.date.slice(0, 7);
   render();
   closeForm();
+  haptic();
+  toast(wasEdit ? 'Transaksi diperbarui.' : 'Transaksi tersimpan.');
 });
 
+// Hapus transaksi dengan UNDO (tanpa dialog — langsung + toast pembatalan)
+function deleteTx(id) {
+  const idx = transactions.findIndex((t) => t.id === id);
+  if (idx === -1) return;
+  const removed = transactions[idx];
+  const pos = idx;
+  transactions = transactions.filter((t) => t.id !== id);
+  save(); render();
+  syncDeleteTx(id);
+  haptic();
+  toast('Transaksi dihapus.', {
+    type: 'info',
+    action: {
+      label: 'Urungkan',
+      onClick: () => {
+        transactions.splice(Math.min(pos, transactions.length), 0, removed);
+        save(); render();
+        syncUpsertTx(removed);
+        toast('Transaksi dikembalikan.');
+      },
+    },
+  });
+}
 $('txList').addEventListener('click', (e) => {
   const btn = e.target.closest('.tx-del');
   if (!btn) return;
-  if (confirm('Hapus transaksi ini?')) {
-    transactions = transactions.filter((t) => t.id !== btn.dataset.id);
-    save(); render();
-    syncDeleteTx(btn.dataset.id);
-  }
+  deleteTx(btn.dataset.id);
 });
 
 $('monthPicker').addEventListener('change', () => { selectedMonth = $('monthPicker').value || ymNow(); render(); });
@@ -818,6 +936,8 @@ $('budgetForm').addEventListener('submit', (e) => {
   saveSettings();
   closeBudgetModal();
   renderBudget();
+  haptic();
+  toast('Anggaran tersimpan.');
 });
 
 /* ============================================================
@@ -932,8 +1052,9 @@ $('goalForm').addEventListener('submit', (e) => {
   const name = $('goalName').value.trim();
   const target = amountVal($('goalTarget'));
   const saved = amountVal($('goalSaved'));
-  if (!name || !target) return;
+  if (!name || !target) { toast('Isi nama & target.', { type: 'error' }); return; }
   settings.goals = settings.goals || [];
+  const wasEdit = !!editGoalId;
   if (editGoalId) {
     const g = settings.goals.find((x) => x.id === editGoalId);
     if (g) { g.name = name; g.target = target; g.saved = saved; }
@@ -943,23 +1064,35 @@ $('goalForm').addEventListener('submit', (e) => {
   saveSettings();
   closeGoalModal();
   renderMore();
+  haptic();
+  toast(wasEdit ? 'Target diperbarui.' : 'Target dibuat.');
 });
-$('goalDeleteBtn').addEventListener('click', () => {
-  if (!editGoalId || !confirm('Hapus target ini?')) return;
-  settings.goals = settings.goals.filter((g) => g.id !== editGoalId);
+$('goalDeleteBtn').addEventListener('click', async () => {
+  if (!editGoalId) return;
+  const gid = editGoalId;
+  if (!await confirmDialog('Hapus target ini?', 'Riwayat dana yang sudah dikumpulkan akan hilang.')) return;
+  settings.goals = settings.goals.filter((g) => g.id !== gid);
   saveSettings();
   closeGoalModal();
   renderMore();
+  toast('Target dihapus.', { type: 'info' });
 });
-$('goalList').addEventListener('click', (e) => {
+$('goalList').addEventListener('click', async (e) => {
   const add = e.target.closest('.g-add');
   if (add) {
     const g = settings.goals.find((x) => x.id === add.dataset.id);
     if (!g) return;
-    const v = prompt(`Tambah dana untuk "${g.name}" (Rp):`);
+    const v = await openDialog({
+      title: 'Tambah Dana', body: `Untuk "${g.name}"`, icon: '💰', danger: false,
+      confirmText: 'Tambah', input: { prefix: 'Rp', placeholder: '0' },
+    });
     if (v === null) return;
     const n = Number(String(v).replace(/\D/g, ''));
-    if (n > 0) { g.saved += n; saveSettings(); renderMore(); }
+    if (n > 0) {
+      g.saved += n; saveSettings(); renderMore(); haptic();
+      const done = g.saved >= g.target && g.target > 0;
+      toast(done ? `🎉 Target "${g.name}" tercapai!` : `+${formatRp(n)} ke "${g.name}".`);
+    }
     return;
   }
   const row = e.target.closest('.goal-row');
@@ -1000,6 +1133,7 @@ $('recForm').addEventListener('submit', (e) => {
   const day = Math.min(31, Math.max(1, Number($('recDay').value) || 1));
   if (!amount) { $('recAmount').focus(); return; }
   settings.recurring = settings.recurring || [];
+  const wasEdit = !!editRecId;
   if (editRecId) {
     const r = settings.recurring.find((x) => x.id === editRecId);
     if (r) {
@@ -1019,13 +1153,18 @@ $('recForm').addEventListener('submit', (e) => {
   closeRecModal();
   applyRecurring();
   renderMore();
+  haptic();
+  toast(wasEdit ? 'Jadwal diperbarui.' : 'Jadwal berulang dibuat.');
 });
-$('recDeleteBtn').addEventListener('click', () => {
-  if (!editRecId || !confirm('Hapus jadwal berulang ini?\nTransaksi yang sudah tercatat tidak ikut terhapus.')) return;
-  settings.recurring = settings.recurring.filter((r) => r.id !== editRecId);
+$('recDeleteBtn').addEventListener('click', async () => {
+  if (!editRecId) return;
+  const rid = editRecId;
+  if (!await confirmDialog('Hapus jadwal berulang ini?', 'Transaksi yang sudah tercatat tidak ikut terhapus.')) return;
+  settings.recurring = settings.recurring.filter((r) => r.id !== rid);
   saveSettings();
   closeRecModal();
   renderMore();
+  toast('Jadwal berulang dihapus.', { type: 'info' });
 });
 $('recList').addEventListener('click', (e) => {
   const row = e.target.closest('.rec-row');
@@ -1065,13 +1204,15 @@ function applyRecurring() {
 }
 
 // --- Template cepat: hapus dari daftar ---
-$('tplList').addEventListener('click', (e) => {
+$('tplList').addEventListener('click', async (e) => {
   const btn = e.target.closest('.row-del');
   if (!btn) return;
-  if (!confirm('Hapus template ini?')) return;
-  settings.templates = settings.templates.filter((t) => t.id !== btn.dataset.id);
+  const tid = btn.dataset.id;
+  if (!await confirmDialog('Hapus template ini?')) return;
+  settings.templates = settings.templates.filter((t) => t.id !== tid);
   saveSettings();
   renderMore();
+  toast('Template dihapus.', { type: 'info' });
 });
 
 // --- Transfer antar dompet (buka form dalam mode transfer) ---
@@ -1082,14 +1223,14 @@ $('remEnabled').addEventListener('change', async () => {
   const on = $('remEnabled').checked;
   if (on) {
     if (!('Notification' in window)) {
-      alert('Browser ini tidak mendukung notifikasi.');
+      toast('Browser ini tidak mendukung notifikasi.', { type: 'error' });
       $('remEnabled').checked = false;
       return;
     }
     if (Notification.permission !== 'granted') {
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
-        alert('Izin notifikasi ditolak. Aktifkan lewat pengaturan browser.');
+        toast('Izin notifikasi ditolak. Aktifkan lewat pengaturan browser.', { type: 'error' });
         $('remEnabled').checked = false;
         return;
       }
@@ -1163,8 +1304,8 @@ function rangeReportHtml(list) {
 
 $('repRunBtn').addEventListener('click', () => {
   const from = $('repFrom').value, to = $('repTo').value;
-  if (!from || !to) { alert('Isi tanggal Dari dan Sampai.'); return; }
-  if (from > to) { alert('Tanggal "Dari" harus sebelum "Sampai".'); return; }
+  if (!from || !to) { toast('Isi tanggal Dari dan Sampai.', { type: 'error' }); return; }
+  if (from > to) { toast('Tanggal "Dari" harus sebelum "Sampai".', { type: 'error' }); return; }
   const list = transactions.filter((t) => t.date >= from && t.date <= to);
   $('repResult').innerHTML = rangeReportHtml(list);
 });
@@ -1219,7 +1360,7 @@ function typeLabel(t) {
 }
 function exportCsv(scope) {
   const list = (scope === 'month' ? monthTxs() : [...transactions]).sort((a, b) => (a.date > b.date ? 1 : -1));
-  if (!list.length) { alert('Tidak ada transaksi untuk diekspor.'); return; }
+  if (!list.length) { toast('Tidak ada transaksi untuk diekspor.', { type: 'error' }); return; }
   const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = [['Tanggal', 'Jenis', 'Kategori', 'Dompet', 'Jumlah', 'Catatan'].map(esc).join(';')];
   for (const t of list) {
@@ -1235,6 +1376,7 @@ function exportCsv(scope) {
   }
   const name = `catatan-keuangan-${scope === 'month' ? selectedMonth : 'semua'}.csv`;
   download(name, '﻿' + rows.join('\r\n'), 'text/csv;charset=utf-8');
+  toast(`${list.length} transaksi diekspor ke CSV.`);
 }
 $('expCsvMonthBtn').addEventListener('click', () => exportCsv('month'));
 $('expCsvAllBtn').addEventListener('click', () => exportCsv('all'));
@@ -1245,6 +1387,7 @@ $('backupBtn').addEventListener('click', () => {
     transactions, settings,
   };
   download(`catatan-keuangan-backup-${todayISO()}.json`, JSON.stringify(payload), 'application/json');
+  toast('Backup JSON diunduh.');
 });
 
 $('restoreBtn').addEventListener('click', () => $('restoreInput').click());
@@ -1255,10 +1398,15 @@ $('restoreInput').addEventListener('change', () => {
   const reader = new FileReader();
   reader.onload = async () => {
     let data;
-    try { data = JSON.parse(reader.result); } catch { alert('File backup tidak valid.'); return; }
-    if (!Array.isArray(data.transactions)) { alert('File backup tidak valid.'); return; }
+    try { data = JSON.parse(reader.result); } catch { toast('File backup tidak valid.', { type: 'error' }); return; }
+    if (!Array.isArray(data.transactions)) { toast('File backup tidak valid.', { type: 'error' }); return; }
     const valid = data.transactions.filter((t) => t && t.id && t.date && t.amount > 0 && t.type);
-    if (!confirm(`Pulihkan ${valid.length} transaksi dari backup?\nData digabung dengan data sekarang (tidak menghapus apa pun).`)) return;
+    if (!valid.length) { toast('Tidak ada transaksi valid di backup.', { type: 'error' }); return; }
+    if (!await confirmDialog(
+      `Pulihkan ${valid.length} transaksi?`,
+      'Data digabung dengan data sekarang (tidak menghapus apa pun).',
+      { icon: '♻', danger: false, confirmText: 'Pulihkan' },
+    )) return;
 
     const map = new Map(transactions.map((t) => [t.id, t]));
     for (const t of valid) map.set(t.id, { ...t });
@@ -1266,13 +1414,18 @@ $('restoreInput').addEventListener('change', () => {
     save();
     await batchUpsert(valid);
 
-    if (data.settings && confirm('Pulihkan juga pengaturan (anggaran, target, jadwal, template)?')) {
+    if (data.settings && await confirmDialog(
+      'Pulihkan pengaturan juga?',
+      'Anggaran, target, jadwal, dan template dari backup akan diterapkan.',
+      { icon: '⚙️', danger: false, confirmText: 'Ya, pulihkan' },
+    )) {
       const def = DEFAULT_SETTINGS();
       settings = { ...def, ...data.settings, reminder: { ...def.reminder, ...(data.settings.reminder || {}) } };
       saveSettings();
     }
     render();
-    alert('Backup berhasil dipulihkan.');
+    haptic();
+    toast('Backup berhasil dipulihkan.');
   };
   reader.readAsText(file);
 });
@@ -1373,8 +1526,12 @@ function stopRemoteSync() {
   if (unsubscribeSettings) { unsubscribeSettings(); unsubscribeSettings = null; }
 }
 
-function signOut() {
-  if (!confirm('Keluar dari aplikasi?\n\nData tetap aman di cloud. Anda perlu login lagi untuk masuk kembali.')) return;
+async function signOut() {
+  if (!await confirmDialog(
+    'Keluar dari aplikasi?',
+    'Data tetap aman di cloud. Anda perlu login lagi untuk masuk kembali.',
+    { icon: '🚪', danger: false, confirmText: 'Keluar' },
+  )) return;
   stopRemoteSync();
   migrationChecked = false;
   currentRoom = null;
@@ -1414,6 +1571,7 @@ const MODAL_CLOSERS = {
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!$('photoViewer').hidden) { $('photoViewer').hidden = true; return; }
+  if (!$('dialogModal').hidden) { closeDialog(null); return; } // dialog selalu teratas
   for (const [id, close] of Object.entries(MODAL_CLOSERS)) {
     if (!$(id).hidden) { close(); return; }
   }
@@ -1421,6 +1579,7 @@ document.addEventListener('keydown', (e) => {
 for (const [id, close] of Object.entries(MODAL_CLOSERS)) {
   $(id).querySelector('.modal-backdrop').addEventListener('click', close);
 }
+$('dialogModal').querySelector('.modal-backdrop').addEventListener('click', () => closeDialog(null));
 
 // Jika sudah pernah login di perangkat ini, buka langsung tanpa login ulang.
 (function autoEnter() {

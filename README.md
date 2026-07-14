@@ -22,6 +22,9 @@ Bisa dipasang di HP seperti aplikasi biasa dan berfungsi **offline**.
 - **Ekspor CSV** (per bulan / semua) dan **backup/pulihkan JSON**
 - **Foto struk** — lampirkan foto pada transaksi (dikompres otomatis,
   ikut tersinkron ke cloud)
+- **Umpan balik halus** — notifikasi *toast* untuk setiap aksi (simpan,
+  ekspor, dsb.), **hapus dengan Urungkan** (tanpa dialog mengganggu), dialog
+  konfirmasi custom yang menyatu dengan tema, dan getar ringan (haptic)
 - **Pengingat harian** untuk mencatat (saat aplikasi terbuka)
 - Catat pemasukan & pengeluaran (jumlah, kategori, tanggal, catatan)
 - Ringkasan saldo, total pemasukan & pengeluaran per bulan
